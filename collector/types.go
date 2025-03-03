@@ -54,6 +54,10 @@ type Config struct {
 	CustomMetrics      string
 	QueryTimeout       int
 	DefaultMetricsFile string
+	IsDG               bool
+	IsASM              bool
+	IsRAC              bool
+	IsArchiveLog       bool
 }
 
 // Metric is an object description

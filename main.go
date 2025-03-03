@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/promslog/flag"
 	"net/http"
@@ -119,6 +120,10 @@ func main() {
 		CustomMetrics:      *customMetrics,
 		QueryTimeout:       *queryTimeout,
 		DefaultMetricsFile: *defaultFileMetrics,
+		IsDG:               *isDG,
+		IsASM:              *isASM,
+		IsRAC:              *isRAC,
+		IsArchiveLog:       *isArchiveLog,
 	}
 	exporter, err := collector.NewExporter(logger, config)
 	if err != nil {
@@ -133,6 +138,8 @@ func main() {
 
 	prometheus.MustRegister(exporter)
 	prometheus.MustRegister(cversion.NewCollector("oracledb_exporter"))
+	prometheus.Unregister(collectors.NewGoCollector())
+	prometheus.Unregister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	logger.Info("Starting oracledb_exporter", "version", Version)
 	logger.Info("Build context", "build", version.BuildContext())

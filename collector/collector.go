@@ -304,6 +304,12 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric, tick *time.Time) {
 		}()
 	}
 
+	// 归档日志指标单独处理
+	if e.config.IsArchiveLog {
+		err := e.scrapeArchivedInfo(e.db, ch)
+		e.logger.Error("Error scraping for archive log", err)
+	}
+
 	e.afterScrape(begun, len(e.metricsToScrape.Metric), errChan)
 }
 

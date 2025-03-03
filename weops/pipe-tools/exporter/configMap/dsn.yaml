@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oracle-dsn
+  namespace: oracle
+data:
+  DATA_SOURCE_NAME_11g: "oracle://system:Weops123@db11g-oracle-db.oracle:1521/XE"
+  DATA_SOURCE_NAME_12c: "oracle://system:Weops123!@db12c-oracle-db.oracle:1521/ORCLCDB.localdomain"
+  DATA_SOURCE_NAME_18c: "oracle://system:Weops123@db18c-oracle-db.oracle:1521/XE"
+  DATA_SOURCE_NAME_19c: "oracle://system:Weops123!@db19c-oracle-db.oracle:1521/ORCLCDB"
+  DATA_SOURCE_NAME_21c: "oracle://system:Weops123!@db21c-oracle-db.oracle:1521/ORCLCDB"
+
+  SERVICE_NAME_11g: "XE"
+  SERVICE_NAME_12c: "ORCLCDB.localdomain"
+  SERVICE_NAME_18c: "XE"
+  SERVICE_NAME_19c: "ORCLCDB"
+  SERVICE_NAME_21c: "ORCLCDB"
+
+  USER_11g: "system"
+  USER_12c: "system"
+  USER_18c: "system"
+  USER_19c: "system"
+  USER_21c: "system"
+
+  PASSWORD_11g: "Weops123"
+  PASSWORD_12c: "Weops123!"
+  PASSWORD_18c: "Weops123"
+  PASSWORD_19c: "Weops123!"
+  PASSWORD_21c: "Weops123!"

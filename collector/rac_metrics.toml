@@ -1,0 +1,5 @@
+[[metric]]
+context = "rac"
+metricsdesc = { node = "Number of nodes in the RAC cluster." }
+request = "select count(*) as node from gv$instance where database_type='RAC'"
+

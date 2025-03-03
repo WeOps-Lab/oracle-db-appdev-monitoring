@@ -1,0 +1,23 @@
+[[metric]]
+context = "dataguard_apply"
+metricsdesc = { lag_delay = "Apply lag in seconds." }
+request = '''
+SELECT
+    to_number(substr(v.value, 2, 2)) * 24 * 60 * 60 + to_number(substr(v.value, 5, 2)) * 60 * 60 + to_number(substr(v.VALUE, 8, 2)) * 60 + to_number(substr(v.VALUE, 11, 2)) AS lag_delay
+FROM
+    v$dataguard_stats v
+WHERE
+    v.name = 'apply lag'
+'''
+
+[[metric]]
+context = "dataguard_transport"
+metricsdesc = { lag_delay = "Transport lag in seconds." }
+request = '''
+SELECT
+    to_number(substr(v.value, 2, 2)) * 24 * 60 * 60 + to_number(substr(v.value, 5, 2)) * 60 * 60 + to_number(substr(v.VALUE, 8, 2)) * 60 + to_number(substr(v.VALUE, 11, 2)) AS lag_delay
+FROM
+    v$dataguard_stats v
+WHERE
+    v.name = 'transport lag'
+'''
