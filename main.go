@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/promslog/flag"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
+	_ "github.com/sijms/go-ora/v2"
 
 	"github.com/alecthomas/kingpin/v2"
 
@@ -45,10 +47,18 @@ var (
 	poolMaxConnections = kingpin.Flag("database.poolMaxConnections", "Maximum number of connections in the connection pool. (env: DATABASE_POOLMAXCONNECTIONS)").Default(getEnv("DATABASE_POOLMAXCONNECTIONS", "-1")).Int()
 	poolMinConnections = kingpin.Flag("database.poolMinConnections", "Minimum number of connections in the connection pool. (env: DATABASE_POOLMINCONNECTIONS)").Default(getEnv("DATABASE_POOLMINCONNECTIONS", "-1")).Int()
 	scrapeInterval     = kingpin.Flag("scrape.interval", "Interval between each scrape. Default is to scrape on collect requests.").Default("0s").Duration()
-	logDisable         = kingpin.Flag("log.disable", "Set to 1 to disable alert logs").Default("0").Int()
+	logDisable         = kingpin.Flag("log.disable", "Set to 1 to disable alert logs").Default("1").Int()
 	logInterval        = kingpin.Flag("log.interval", "Interval between log updates (e.g. 5s).").Default("15s").Duration()
 	logDestination     = kingpin.Flag("log.destination", "File to output the alert log to. (env: LOG_DESTINATION)").Default(getEnv("LOG_DESTINATION", "/log/alert.log")).String()
 	toolkitFlags       = webflag.AddFlags(kingpin.CommandLine, ":9161")
+	host               = kingpin.Flag("host", "Oracle database service ip or domain").Default("127.0.0.1").String()
+	port               = kingpin.Flag("port", "Oracle database service port").Default("1521").String()
+	serviceName        = os.Getenv("SERVICE_NAME")
+	isDG               = kingpin.Flag("isDataGuard", "Whether this is a DataGuard").Default("false").Bool()
+	isASM              = kingpin.Flag("isASM", "Whether this is a ASM").Default("false").Bool()
+	isRAC              = kingpin.Flag("isRAC", "Whether this is a RAC").Default("false").Bool()
+	isArchiveLog       = kingpin.Flag("isArchiveLog", "Whether to collect archiveLog metrics").Default("false").Bool()
+	DSN                string
 )
 
 func main() {
@@ -58,11 +68,17 @@ func main() {
 	kingpin.Version(version.Print("oracledb_exporter"))
 	kingpin.Parse()
 	logger := promslog.New(promLogConfig)
-	user := os.Getenv("DB_USERNAME")
-	password := os.Getenv("DB_PASSWORD")
+	user := os.Getenv("USER")
+	password := os.Getenv("PASSWORD")
 	connectString := os.Getenv("DB_CONNECT_STRING")
 	dbrole := os.Getenv("DB_ROLE")
 	tnsadmin := os.Getenv("TNS_ADMIN")
+
+	if connectString == "" {
+		// 拼接DSN字符串
+		DSN = fmt.Sprintf("oracle://%v:%v@%v:%s/%s", user, password, *host, *port, serviceName)
+	}
+
 	// externalAuth - Default to user/password but if no password is supplied then will automagically set to true
 	externalAuth := false
 
@@ -91,6 +107,7 @@ func main() {
 		User:               user,
 		Password:           password,
 		ConnectString:      connectString,
+		DSN:                DSN,
 		DbRole:             dsn.AdminRole(dbrole),
 		ConfigDir:          tnsadmin,
 		ExternalAuth:       externalAuth,

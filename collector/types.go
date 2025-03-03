@@ -20,6 +20,7 @@ type Exporter struct {
 	user            string
 	password        string
 	connectString   string
+	dsn             string
 	configDir       string
 	externalAuth    bool
 	duration, error prometheus.Gauge
@@ -37,7 +38,11 @@ type Exporter struct {
 type Config struct {
 	User               string
 	Password           string
+	Host               string
+	Port               string
+	ServiceName        string
 	ConnectString      string
+	DSN                string
 	DbRole             dsn.AdminRole
 	ConfigDir          string
 	ExternalAuth       bool

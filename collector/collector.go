@@ -55,6 +55,7 @@ func NewExporter(logger *slog.Logger, cfg *Config) (*Exporter, error) {
 		user:          cfg.User,
 		password:      cfg.Password,
 		connectString: cfg.ConnectString,
+		dsn:           cfg.DSN,
 		configDir:     cfg.ConfigDir,
 		externalAuth:  cfg.ExternalAuth,
 		duration: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -290,7 +291,7 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric, tick *time.Time) {
 					e.logger.Error("Error scraping metric",
 						"Context", metric.Context,
 						"MetricsDesc", fmt.Sprint(metric.MetricsDesc),
-						"time", time.Since(scrapeStart),
+						"duration", time.Since(scrapeStart),
 						"error", scrapeError)
 				}
 				e.scrapeErrors.WithLabelValues(metric.Context).Inc()
@@ -298,7 +299,7 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric, tick *time.Time) {
 				e.logger.Debug("Successfully scraped metric",
 					"Context", metric.Context,
 					"MetricDesc", fmt.Sprint(metric.MetricsDesc),
-					"time", time.Since(scrapeStart))
+					"duration", time.Since(scrapeStart))
 			}
 		}()
 	}
@@ -381,7 +382,11 @@ func (e *Exporter) connect() error {
 
 	// note that this just configures the connection, it does not actually connect until later
 	// when we call db.Ping()
-	db := sql.OpenDB(godror.NewConnector(P))
+	db, err := sql.Open("oracle", e.dsn)
+	if err != nil {
+		e.logger.Error("error while connecting to", maskDsn(e.dsn))
+		return err
+	}
 	e.logger.Debug("set max idle connections to ", e.config.MaxIdleConns)
 	db.SetMaxIdleConns(e.config.MaxIdleConns)
 	e.logger.Debug("set max open connections to ", e.config.MaxOpenConns)
