@@ -1,7 +1,7 @@
 [[metric]]
 context = "asm_disk_stat"
 labels = [ "inst_id", "node_name", "instance_name", "diskgroup_name", "disk_number", "failgroup", "path" ]
-metricsdesc = { reads = "Total number of I/O read requests for the DG.", writes = "Total number of I/O write requests for the DG.", read_time = "Total I/O time (in hundreths of a second) for read requests for the disk", write_time = "Total I/O time (in hundreths of a second) for write requests for the disk", bytes_read = "Total number of bytes read from the DG", bytes_written = "Total number of bytes written from the DG", iops = "Total number of I/O requests for the DG" }
+metricsdesc = { reads = "Total number of I/O read requests for the DG.", writes = "Total number of I/O write requests for the DG.", read_time = "Total I/O time (in hundreths of a second) for read requests for the disk", write_time = "Total I/O time (in hundreths of a second) for write requests for the disk", bytes_read = "Total number of bytes read from the DG", bytes_written = "Total number of bytes written from the DG", io = "Total number of I/O requests for the DG" }
 metricstype = { reads = "counter", writes = "counter", bytes_read = "counter", read_time = "counter", write_time = "counter", bytes_written = "counter", iops = "counter" }
 request = '''
   SELECT i.instance_number                         AS inst_id,
@@ -17,7 +17,7 @@ request = '''
 		 ds.bytes_read                             AS bytes_read,
 		 ds.bytes_written                          AS bytes_written,
 		 REGEXP_REPLACE (ds.PATH, '.*/\', '\')     AS PATH,
-		 ds.reads + ds.writes                      AS iops
+		 ds.reads + ds.writes                      AS io
 	FROM v$asm_disk_stat ds, v$asm_diskgroup_stat g, v$instance i
    WHERE ds.mount_status = 'CACHED' AND ds.group_number = g.group_number
 '''
