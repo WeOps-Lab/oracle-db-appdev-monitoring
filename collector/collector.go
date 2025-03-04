@@ -53,7 +53,6 @@ func NewExporter(logger *slog.Logger, cfg *Config) (*Exporter, error) {
 		user:          cfg.User,
 		password:      cfg.Password,
 		connectString: cfg.ConnectString,
-		dsn:           cfg.DSN,
 		configDir:     cfg.ConfigDir,
 		externalAuth:  cfg.ExternalAuth,
 		duration: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -348,10 +347,10 @@ func (e *Exporter) connect() error {
 	}
 	e.logger.Debug("set max idle connections to ", e.config.MaxIdleConns)
 	db.SetMaxIdleConns(e.config.MaxIdleConns)
-	e.logger.Debug("set max open connections to ", e.config.MaxOpenConns)
+	e.logger.Debug(fmt.Sprintf("set max open connections to %d", e.config.MaxOpenConns))
 	db.SetMaxOpenConns(e.config.MaxOpenConns)
 	db.SetConnMaxLifetime(0)
-	e.logger.Debug("Successfully configured connection to " + maskDsn(e.connectString))
+	e.logger.Debug(fmt.Sprintf("Successfully configured connection to %s", maskDsn(e.connectString)))
 	e.db = db
 
 	if _, err := db.Exec(`
@@ -363,13 +362,13 @@ func (e *Exporter) connect() error {
 
 	var result int
 	if err := db.QueryRow("select sys_context('USERENV', 'CON_ID') from dual").Scan(&result); err != nil {
-		e.logger.Info("dbtype err =" + string(err.Error()))
+		e.logger.Info("dbtype err", "error", err)
 	}
 	e.dbtype = result
 
 	var sysdba string
 	if err := db.QueryRow("select sys_context('USERENV', 'ISDBA') from dual").Scan(&sysdba); err != nil {
-		e.logger.Info("got error checking my database role")
+		e.logger.Error("error checking my database role", "error", err)
 	}
 	e.logger.Info("Connected as SYSDBA? " + sysdba)
 
@@ -427,7 +426,7 @@ func (e *Exporter) reloadMetrics() {
 		for _, _customMetrics := range strings.Split(e.config.CustomMetrics, ",") {
 			metrics := &Metrics{}
 			if _, err := toml.DecodeFile(_customMetrics, metrics); err != nil {
-				e.logger.Error("failed to load custom metrics", err)
+				e.logger.Error("failed to load custom metrics", "error", err)
 				panic(errors.New("Error while loading " + _customMetrics))
 			} else {
 				e.logger.Info("Successfully loaded custom metrics from " + _customMetrics)
@@ -464,11 +463,9 @@ func (e *Exporter) scrapeGenericValues(db *sql.DB, ch chan<- prometheus.Metric, 
 		}
 		// Construct Prometheus values to sent back
 		for metric, metricHelp := range metricsDesc {
-			value, err := strconv.ParseFloat(strings.TrimSpace(row[metric]), 64)
-			// If not a float, skip current metric
-			if err != nil {
-				e.logger.Error("Unable to convert current value to float (metric=" + metric +
-					",metricHelp=" + metricHelp + ",value=<" + row[metric] + ">)")
+			value, ok := e.parseFloat(metric, metricHelp, row)
+			if !ok {
+				// Skip invalid metric values
 				continue
 			}
 			e.logger.Debug("Query result",
