@@ -37,27 +37,27 @@ go-build:
 
 .PHONY: go-build-linux-amd64
 go-build-linux-amd64:
-	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 $(MAKE) go-build -j2
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(MAKE) go-build -j2
 
 .PHONY: go-build-linux-arm64
 go-build-linux-arm64:
-	CGO_ENABLED=1 GOOS=linux GOARCH=arm64 $(MAKE) go-build -j2
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(MAKE) go-build -j2
 
 .PHONY: go-build-darwin-amd64
 go-build-darwin-amd64:
-	CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 $(MAKE) go-build -j2
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(MAKE) go-build -j2
 
 .PHONY: go-build-darwin-arm64
 go-build-darwin-arm64:
-	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 $(MAKE) go-build -j2
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(MAKE) go-build -j2
 
 .PHONY: go-build-windows-amd64
 go-build-windows-amd64:
-	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 $(MAKE) go-build -j2
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(MAKE) go-build -j2
 
 .PHONY: go-build-windows-x86
 go-build-windows-x86:
-	CGO_ENABLED=1 GOOS=windows GOARCH=386 $(MAKE) go-build -j2
+	CGO_ENABLED=0 GOOS=windows GOARCH=386 $(MAKE) go-build -j2
 
 go-lint:
 	@echo "Linting codebase"
