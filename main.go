@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/promslog/flag"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime/debug"
 	"syscall"
@@ -76,7 +77,7 @@ func main() {
 
 	if connectString == "" {
 		// 拼接DSN字符串
-		DSN = fmt.Sprintf("oracle://%v:%v@%v:%s/%s", user, password, *host, *port, serviceName)
+		DSN = fmt.Sprintf("oracle://%v:%v@%v:%s/%s", url.QueryEscape(user), url.QueryEscape(password), *host, *port, serviceName)
 	}
 
 	// externalAuth - Default to user/password but if no password is supplied then will automagically set to true
