@@ -7,7 +7,7 @@ VERSION        ?= 1.5.4
 LDFLAGS        := -X main.Version=$(VERSION)
 GOFLAGS        := -ldflags "$(LDFLAGS) -s -w"
 BUILD_ARGS      = --build-arg VERSION=$(VERSION)
-OUTDIR          = ./dist
+OUTDIR         ?= ./dist
 
 IMAGE_NAME     ?= container-registry.oracle.com/database/observability-exporter
 IMAGE_ID       ?= $(IMAGE_NAME):$(VERSION)
@@ -29,11 +29,8 @@ version:
 .PHONY: go-build
 go-build:
 	@echo "Build $(OS_TYPE)"
-	mkdir -p $(OUTDIR)/oracledb_exporter-$(VERSION).$(GOOS)-$(GOARCH)/
-	go build $(GOFLAGS) -o $(OUTDIR)/oracledb_exporter-$(VERSION).$(GOOS)-$(GOARCH)/oracledb_exporter$(EXT)
-	cp default-metrics.toml $(OUTDIR)/$(DIST_DIR)
-	#cp teq-default-metrics.toml $(OUTDIR)/$(DIST_DIR)/default-metrics.toml
-	(cd dist ; tar cfz oracledb_exporter-$(VERSION).$(GOOS)-$(GOARCH).tar.gz oracledb_exporter-$(VERSION).$(GOOS)-$(GOARCH))
+	mkdir -p $(OUTDIR)
+	go build $(GOFLAGS) -o $(OUTDIR)/oracledb_exporter-$(GOOS)-$(GOARCH)$(EXT)
 
 .PHONY: go-build-linux-amd64
 go-build-linux-amd64:
