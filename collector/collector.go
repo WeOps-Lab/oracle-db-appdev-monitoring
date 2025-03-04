@@ -53,6 +53,7 @@ func NewExporter(logger *slog.Logger, cfg *Config) (*Exporter, error) {
 		user:          cfg.User,
 		password:      cfg.Password,
 		connectString: cfg.ConnectString,
+		dsn:           cfg.DSN,
 		configDir:     cfg.ConfigDir,
 		externalAuth:  cfg.ExternalAuth,
 		duration: prometheus.NewGauge(prometheus.GaugeOpts{
