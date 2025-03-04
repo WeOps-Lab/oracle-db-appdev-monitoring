@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/godror/godror/dsn"
 	"github.com/prometheus/client_golang/prometheus"
 	cversion "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -72,7 +71,7 @@ func main() {
 	user := os.Getenv("USER")
 	password := os.Getenv("PASSWORD")
 	connectString := os.Getenv("DB_CONNECT_STRING")
-	dbrole := os.Getenv("DB_ROLE")
+	//dbrole := os.Getenv("DB_ROLE")
 	tnsadmin := os.Getenv("TNS_ADMIN")
 
 	if connectString == "" {
@@ -105,11 +104,11 @@ func main() {
 	}
 
 	config := &collector.Config{
-		User:               user,
-		Password:           password,
-		ConnectString:      connectString,
-		DSN:                DSN,
-		DbRole:             dsn.AdminRole(dbrole),
+		User:          user,
+		Password:      password,
+		ConnectString: connectString,
+		DSN:           DSN,
+		//DbRole:             dsn.AdminRole(dbrole),
 		ConfigDir:          tnsadmin,
 		ExternalAuth:       externalAuth,
 		MaxOpenConns:       *maxOpenConns,

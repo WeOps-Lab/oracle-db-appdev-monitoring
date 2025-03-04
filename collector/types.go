@@ -4,7 +4,6 @@ package collector
 
 import (
 	"database/sql"
-	"github.com/godror/godror/dsn"
 	"github.com/prometheus/client_golang/prometheus"
 	"log/slog"
 	"sync"
@@ -36,14 +35,14 @@ type Exporter struct {
 }
 
 type Config struct {
-	User               string
-	Password           string
-	Host               string
-	Port               string
-	ServiceName        string
-	ConnectString      string
-	DSN                string
-	DbRole             dsn.AdminRole
+	User          string
+	Password      string
+	Host          string
+	Port          string
+	ServiceName   string
+	ConnectString string
+	DSN           string
+	//DbRole             dsn.AdminRole
 	ConfigDir          string
 	ExternalAuth       bool
 	MaxIdleConns       int

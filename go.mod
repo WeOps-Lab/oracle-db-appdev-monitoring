@@ -7,11 +7,11 @@ toolchain go1.22.4
 require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/godror/godror v0.46.1-0.20250226074503-67aeda640090
 	github.com/oracle/oci-go-sdk/v65 v65.84.0
 	github.com/prometheus/client_golang v1.21.0
 	github.com/prometheus/common v0.62.0
 	github.com/prometheus/exporter-toolkit v0.14.0
+	github.com/sijms/go-ora/v2 v2.8.24
 )
 
 require (
@@ -19,8 +19,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/go-logfmt/logfmt v0.6.0 // indirect
-	github.com/godror/knownpb v0.1.2 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
@@ -30,11 +28,9 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/sijms/go-ora/v2 v2.8.24 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect

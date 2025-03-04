@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/godror/godror"
-	"github.com/godror/godror/dsn"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -331,7 +329,6 @@ func (e *Exporter) afterScrape(begun time.Time, countMetrics int, errChan chan e
 func (e *Exporter) connect() error {
 	e.logger.Debug("Launching connection to " + maskDsn(e.connectString))
 
-	var P godror.ConnectionParams
 	// If password is not specified, externalAuth will be true and we'll ignore user input
 	e.externalAuth = e.password == ""
 	e.logger.Debug("external authentication set to ", e.externalAuth)
@@ -341,50 +338,6 @@ func (e *Exporter) connect() error {
 		e.user = ""
 	}
 	e.logger.Info(msg)
-	externalAuth := sql.NullBool{
-		Bool:  e.externalAuth,
-		Valid: true,
-	}
-	P.Username, P.Password, P.ConnectString, P.ExternalAuth = e.user, godror.NewPassword(e.password), e.connectString, externalAuth
-
-	if e.config.PoolIncrement > 0 {
-		e.logger.Debug("set pool increment to ", e.config.PoolIncrement)
-		P.PoolParams.SessionIncrement = e.config.PoolIncrement
-	}
-	if e.config.PoolMaxConnections > 0 {
-		e.logger.Debug("set pool max connections to ", e.config.PoolMaxConnections)
-		P.PoolParams.MaxSessions = e.config.PoolMaxConnections
-	}
-	if e.config.PoolMinConnections > 0 {
-		e.logger.Debug("set pool min connections to ", e.config.PoolMinConnections)
-		P.PoolParams.MinSessions = e.config.PoolMinConnections
-	}
-
-	P.PoolParams.WaitTimeout = time.Second * 5
-
-	// if TNS_ADMIN env var is set, set ConfigDir to that location
-	P.ConfigDir = e.configDir
-
-	switch e.config.DbRole {
-	case "SYSDBA":
-		P.AdminRole = dsn.SysDBA
-	case "SYSOPER":
-		P.AdminRole = dsn.SysOPER
-	case "SYSBACKUP":
-		P.AdminRole = dsn.SysBACKUP
-	case "SYSDG":
-		P.AdminRole = dsn.SysDG
-	case "SYSKM":
-		P.AdminRole = dsn.SysKM
-	case "SYSRAC":
-		P.AdminRole = dsn.SysRAC
-	case "SYSASM":
-		P.AdminRole = dsn.SysASM
-	default:
-		P.AdminRole = dsn.NoRole
-	}
-
-	e.logger.Debug("connection properties: " + fmt.Sprint(P))
 
 	// note that this just configures the connection, it does not actually connect until later
 	// when we call db.Ping()
