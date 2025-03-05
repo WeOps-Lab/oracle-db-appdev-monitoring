@@ -96,10 +96,10 @@ FROM
 
 [[metric]]
 context = "db_system"
-labels = [ "name" ]
+labels = [ "resource_name" ]
 metricsdesc = { value = "Database system resources metric" }
 request = '''
-select name, value
+select name as resource_name, value
 from v$parameter
 where name in ('cpu_count', 'sga_max_size', 'pga_aggregate_limit')
 '''
