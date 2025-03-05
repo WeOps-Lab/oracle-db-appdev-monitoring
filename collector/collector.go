@@ -294,6 +294,8 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric, tick *time.Time) {
 				}
 				e.scrapeErrors.WithLabelValues(metric.Context).Inc()
 			} else {
+				// 当没有错误时设置为0
+				e.scrapeErrors.WithLabelValues(metric.Context).Add(0)
 				e.logger.Debug("Successfully scraped metric",
 					"Context", metric.Context,
 					"MetricDesc", fmt.Sprint(metric.MetricsDesc),
