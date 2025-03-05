@@ -323,7 +323,11 @@ func (e *Exporter) afterScrape(begun time.Time, countMetrics int, errChan chan e
 	close(errChan)
 
 	e.duration.Set(time.Since(begun).Seconds())
-	e.error.Set(totalErrors)
+	if totalErrors == 0 {
+		e.error.Set(0)
+	} else {
+		e.error.Set(1)
+	}
 }
 
 func (e *Exporter) connect() error {
