@@ -74,7 +74,7 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
    ```
 4. 创建账户及授权  
    注意！创建账户时必须使用管理员账户
-   
+
    > 创建账户类型有区别:  
    a) 在Oracle数据库中，使用C##前缀是为了创建一个包含大写字母和特殊字符的用户名，这样可以确保在创建和使用这些用户时不会发生命名冲突。C##前缀表示"Container Database"，用于标识这个用户是一个全局共享的用户，而不是只属于某个具体的Pluggable Database (PDB)。  
    b) 要决定是否在用户名前使用C##，主要取决于数据库的架构。在Oracle 12c及更高版本中，数据库被分为一个容器数据库（CDB）和一个或多个可插拔数据库（PDB）。如果你在CDB层面创建用户，可以选择使用C##前缀，表示这个用户是一个全局共享的用户。如果在PDB层面创建用户，通常不需要使用C##前缀，因为PDB内的用户空间是相互隔离的。  
@@ -83,126 +83,124 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
    `CREATE USER C##GlobalUser IDENTIFIED BY password CONTAINER = ALL;`  
    e) 不使用 C## 前缀的情况：   
    `CREATE USER LocalUser IDENTIFIED BY password;`
-
-
-   ```sql
-   # 新建用户
-   CREATE USER [user] IDENTIFIED BY [password];
-
-   # 修改用户的密码，密码若含特殊字符需使用双引号将密码括起来
-   ALTER USER [user] IDENTIFIED BY [password];
-
-   # 允许用户建立数据库会话
-   GRANT CREATE SESSION TO [user];
-
-   # uptime指标授权
-   GRANT SELECT ON V_$instance to [user];
-
-   # rac指标授权
-   GRANT SELECT ON GV_$instance to [user];
-
-   # sessions类指标授权
-   GRANT SELECT ON V_$session to [user];
-
-   # resource类指标授权
-   GRANT SELECT ON V_$resource_limit to [user];
-
-   # asm_diskgroup类指标授权
-   GRANT SELECT ON V_$datafile to [user];
-   GRANT SELECT ON V_$asm_diskgroup_stat to [user];
-
-   # activity类指标授权
-   GRANT SELECT ON V_$sysstat to [user];
-
-   # process类指标授权
-   GRANT SELECT ON V_$process to [user];
-
-   # wait_time类指标授权
-   GRANT SELECT ON V_$waitclassmetric to [user];
-   GRANT SELECT ON V_$system_wait_class to [user];
-
-   # tablespace类指标授权
-   GRANT SELECT ON dba_tablespace_usage_metrics to [user];
-   GRANT SELECT ON dba_tablespaces to [user];
-
-   # asm_disk_stat类指标授权
-   GRANT SELECT ON V_$asm_disk_stat to [user];
-   GRANT SELECT ON V_$asm_diskgroup_stat to [user];
-   GRANT SELECT ON V_$instance to [user];
-
-   # asm_space_consumers类指标授权
-   GRANT SELECT ON V_$asm_alias to [user];
-   GRANT SELECT ON V_$asm_diskgroup to [user];
-   GRANT SELECT ON V_$asm_file to [user];
-
-   # sga类指标授权
-   GRANT SELECT ON V_$sga TO [user];
-   GRANT SELECT ON V_$sgastat TO [user];
-
-   # pga类指标授权
-   GRANT SELECT ON V_$pgastat TO [user];
-
-   # dataguard类指标授权
-   GRANT SELECT ON V_$dataguard_stats TO [user];
    
-   # archived_log类指标授权
-   GRANT SELECT ON V_$database to [user];
-   GRANT SELECT ON V_$archive_dest to [user];
-   GRANT SELECT ON V_$parameter to [user];
-   GRANT SELECT ON V_$asm_diskgroup to [user];
+
+   使用前将 `username` 替换为实际的用户名, 将 `password` 和 `new_password` 替换为实际的密码, 密码中如包含特殊字符，需要用双引号括起来  
+   ```sql
+   -- 创建用户并修改密码
+   CREATE USER username IDENTIFIED BY "password";
+   ALTER USER username IDENTIFIED BY "new_password";
+   
+   -- 基础权限授权
+   GRANT CREATE SESSION TO username;
+   
+   -- 核心监控指标授权
+   GRANT SELECT ON V_$instance TO username;           -- uptime指标
+   GRANT SELECT ON GV_$instance TO username;          -- RAC指标
+   GRANT SELECT ON V_$session TO username;            -- sessions指标
+   GRANT SELECT ON V_$resource_limit TO username;     -- resource指标
+   GRANT SELECT ON V_$sysstat TO username;           -- activity指标
+   GRANT SELECT ON V_$process TO username;           -- process指标
+   GRANT SELECT ON V_$sysmetric TO username;         -- cache指标
+   
+   -- 性能指标授权
+   GRANT SELECT ON V_$waitclassmetric TO username;    -- wait_time指标
+   GRANT SELECT ON V_$system_wait_class TO username;  -- wait_time指标
+   GRANT SELECT ON V_$sga TO username;               -- sga指标
+   GRANT SELECT ON V_$sgastat TO username;           -- sga指标
+   GRANT SELECT ON V_$pgastat TO username;           -- pga指标
+   
+   -- 存储空间指标授权
+   GRANT SELECT ON dba_tablespace_usage_metrics TO username;  -- tablespace指标
+   GRANT SELECT ON dba_tablespaces TO username;              -- tablespace指标
+   
+   -- ASM相关指标授权
+   GRANT SELECT ON V_$datafile TO username;                  -- asm_diskgroup指标
+   GRANT SELECT ON V_$asm_diskgroup_stat TO username;        -- asm_diskgroup指标
+   GRANT SELECT ON V_$asm_disk_stat TO username;            -- asm_disk_stat指标
+   GRANT SELECT ON V_$asm_alias TO username;                -- asm_space指标
+   GRANT SELECT ON V_$asm_diskgroup TO username;            -- asm_space指标
+   GRANT SELECT ON V_$asm_file TO username;                 -- asm_space指标
+   
+   -- DG和归档日志指标授权
+   GRANT SELECT ON V_$dataguard_stats TO username;          -- dataguard指标
+   GRANT SELECT ON V_$database TO username;                 -- archived_log指标
+   GRANT SELECT ON V_$archive_dest TO username;             -- archived_log指标
+   GRANT SELECT ON V_$parameter TO username;                -- archived_log指标
    ```
 
 ### 指标简介
-
-| **指标ID**                               | **指标中文名**                | **维度ID**                                                                        | **维度含义**                                   | **单位**    |
-|----------------------------------------|--------------------------|---------------------------------------------------------------------------------|--------------------------------------------|-----------|
-| oracledb_up                            | Oracle数据库监控插件运行状态        | -                                                                               | -                                          | -         |
-| oracledb_uptime_seconds                | Oracle数据库实例已运行时间         | inst_id, instance_name, node_name                                               | 实例ID, 实例名称, 节点名称                           | s         |
-| oracledb_activity_execute_count        | Oracle数据库执行次数            | -                                                                               | -                                          | -         |
-| oracledb_activity_parse_count_total    | Oracle数据库解析次数            | -                                                                               | -                                          | -         |
-| oracledb_activity_user_commits         | Oracle数据库用户提交次数          | -                                                                               | -                                          | -         |
-| oracledb_activity_user_rollbacks       | Oracle数据库用户回滚次数          | -                                                                               | -                                          | -         |
-| oracledb_wait_time_application         | Oracle数据库应用类等待时间         | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_commit              | Oracle数据库提交等待时间          | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_concurrency         | Oracle数据库并发等待时间          | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_configuration       | Oracle数据库配置等待时间          | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_network             | Oracle数据库网络等待时间          | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_other               | Oracle数据库其他等待时间          | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_scheduler           | Oracle数据库调度程序等待时间        | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_system_io           | Oracle数据库系统I/O等待时间       | -                                                                               | -                                          | ms        |
-| oracledb_wait_time_user_io             | Oracle数据库用户I/O等待时间       | -                                                                               | -                                          | ms        |
-| oracledb_resource_current_utilization  | Oracle数据库当前资源使用量         | resource_name                                                                   | 资源类型                                       | -         |
-| oracledb_resource_limit_value          | Oracle数据库资源限定值           | resource_name                                                                   | 资源类型                                       | -         |
-| oracledb_process_count                 | Oracle数据库进程数             | -                                                                               | -                                          | -         |
-| oracledb_sessions_value                | Oracle数据库会话数             | status, type                                                                    | 会话状态, 会话类型                                 | -         |
-| oracledb_sga_total                     | Oracle数据库SGA总大小          | -                                                                               | -                                          | bytes     |
-| oracledb_sga_free                      | Oracle数据库SGA可用大小         | -                                                                               | -                                          | bytes     |
-| oracledb_sga_used_percent              | Oracle数据库SGA使用率          | -                                                                               | -                                          | percent   |
-| oracledb_pga_total                     | Oracle数据库PGA总大小          | -                                                                               | -                                          | bytes     |
-| oracledb_pga_used                      | Oracle数据库PGA已使用大小        | -                                                                               | -                                          | bytes     |
-| oracledb_pga_used_percent              | Oracle数据库PGA使用率          | -                                                                               | -                                          | percent   |
-| oracledb_tablespace_bytes              | Oracle数据库表已使用容量大小        | tablespace, type                                                                | 表空间名称，表空间类型                                | bytes     |
-| oracledb_tablespace_max_bytes          | Oracle数据库表最大容量限制         | tablespace, type                                                                | 表空间名称，表空间类型                                | bytes     |
-| oracledb_tablespace_free               | Oracle数据库表可用容量大小         | tablespace, type                                                                | 表空间名称，表空间类型                                | bytes     |
-| oracledb_tablespace_used_percent       | Oracle数据库表空间使用率          | tablespace, type                                                                | 表空间名称，表空间类型                                | percent   |
-| oracledb_rac_node                      | Oracle数据库RAC节点数量         | -                                                                               | -                                          | -         |
-| oracledb_dataguard_transport_lag_delay | Oracle数据库DataGuard数据传输延迟 | -                                                                               | -                                          | -         |
-| oracledb_dataguard_apply_lag_delay     | Oracle数据库DataGuard数据应用延迟 | -                                                                               | -                                          | -         |
-| oracledb_asm_diskgroup_free            | Oracle数据库ASM磁盘组可用空间      | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
-| oracledb_asm_diskgroup_total           | Oracle数据库ASM磁盘组总容量       | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
-| oracledb_asm_diskgroup_usage           | Oracle数据库ASM磁盘组空间使用率     | diskgroup_name                                                                  | 磁盘组名称                                      | percent   |
-| oracledb_asm_disk_stat_reads           | Oracle数据库ASM磁盘的读操作总数     | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | -         |
-| oracledb_asm_disk_stat_writes          | Oracle数据库ASM磁盘的写操作总数     | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | -         |
-| oracledb_asm_disk_stat_bytes_read      | Oracle数据库ASM磁盘的总读取字节数    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | bytes     |
-| oracledb_asm_disk_stat_read_time       | Oracle数据库ASM磁盘的读取时间总和    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | ms        |
-| oracledb_asm_disk_stat_write_time      | Oracle数据库ASM磁盘的写入时间总和    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | ms        |
-| oracledb_asm_disk_stat_bytes_written   | Oracle数据库ASM磁盘的总写入字节数    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | bytes     |
-| oracledb_asm_disk_stat_iops            | Oracle数据库ASM磁盘每秒IO       | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | -         |
-| oracledb_asm_space_consumers_files     | Oracle数据库ASM磁盘组上文件数量     | diskgroup_name, file_type, inst_id, instance_name, node_name                    | 磁盘组名称, 文件类型, 实例ID, 实例名称, 节点名称              | -         |
-| oracledb_asm_space_consumers_size_mb   | Oracle数据库ASM磁盘组上文件大小     | diskgroup_name, file_type, inst_id, instance_name, node_name                    | 磁盘组名称, 文件类型, 实例ID, 实例名称, 节点名称              | mebibytes |
-| oracledb_archived_log_total            | Oracle数据库归档日志总空间大小       | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
-| oracledb_archived_log_used             | Oracle数据库归档日志已使用空间大小     | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
-| oracledb_archived_log_usage_ratio      | Oracle数据库归档日志空间使用率       | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
+| **指标ID**                                       | **指标中文名**                | **维度ID**                                                                        | **维度含义**                                   | **单位**    |
+|------------------------------------------------|--------------------------|---------------------------------------------------------------------------------|--------------------------------------------|-----------|
+| oracledb_up                                    | Oracle数据库监控插件运行状态        | -                                                                               | -                                          | -         |
+| oracledb_uptime_seconds                        | Oracle数据库实例已运行时间         | inst_id, instance_name, node_name                                               | 实例ID, 实例名称, 节点名称                           | s         |
+| oracledb_cache_hit_ratio_value                 | Oracle数据库缓存命中率           | cache_hit_type                                                                  | 类型                                         | percent   |
+| oracledb_activity_execute_count                | Oracle数据库执行次数            | -                                                                               | -                                          | -         |
+| oracledb_activity_execute_rate                 | Oracle数据库执行速率            | -                                                                               | -                                          | cps       |
+| oracledb_activity_parse_count_total            | Oracle数据库解析次数            | -                                                                               | -                                          | -         |
+| oracledb_activity_parse_rate                   | Oracle数据库解析速率            | -                                                                               | -                                          | cps       |
+| oracledb_activity_user_commits                 | Oracle数据库用户提交次数          | -                                                                               | -                                          | -         |
+| oracledb_activity_user_commits_rate            | Oracle数据库用户提交速率          | -                                                                               | -                                          | cps       |
+| oracledb_activity_user_rollbacks               | Oracle数据库用户回滚次数          | -                                                                               | -                                          | -         |
+| oracledb_activity_user_rollbacks_rate          | Oracle数据库用户回滚速率          | -                                                                               | -                                          | cps       |
+| oracledb_wait_time_application                 | Oracle数据库应用类等待时间         | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_commit                      | Oracle数据库提交等待时间          | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_concurrency                 | Oracle数据库并发等待时间          | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_configuration               | Oracle数据库配置等待时间          | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_network                     | Oracle数据库网络等待时间          | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_other                       | Oracle数据库其他等待时间          | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_scheduler                   | Oracle数据库调度程序等待时间        | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_system_io                   | Oracle数据库系统I/O等待时间       | -                                                                               | -                                          | ms        |
+| oracledb_wait_time_user_io                     | Oracle数据库用户I/O等待时间       | -                                                                               | -                                          | ms        |
+| oracledb_resource_current_utilization          | Oracle数据库当前资源使用量         | resource_name                                                                   | 资源类型                                       | -         |
+| oracledb_resource_limit_value                  | Oracle数据库资源限定值           | resource_name                                                                   | 资源类型                                       | -         |
+| oracledb_process_count                         | Oracle数据库进程数             | -                                                                               | -                                          | -         |
+| oracledb_sessions_value                        | Oracle数据库会话数             | status, type                                                                    | 会话状态, 会话类型                                 | -         |
+| oracledb_db_system_value                       | Oracle数据库系统资源            | resource_name                                                                   | 资源名称                                       | -         |
+| oracledb_sga_total                             | Oracle数据库SGA总大小          | -                                                                               | -                                          | bytes     |
+| oracledb_sga_free                              | Oracle数据库SGA可用大小         | -                                                                               | -                                          | bytes     |
+| oracledb_sga_used_percent                      | Oracle数据库SGA使用率          | -                                                                               | -                                          | percent   |
+| oracledb_pga_total                             | Oracle数据库PGA总大小          | -                                                                               | -                                          | bytes     |
+| oracledb_pga_used                              | Oracle数据库PGA已使用大小        | -                                                                               | -                                          | bytes     |
+| oracledb_pga_used_percent                      | Oracle数据库PGA使用率          | -                                                                               | -                                          | percent   |
+| oracledb_tablespace_bytes                      | Oracle数据库表已使用容量大小        | tablespace, type                                                                | 表空间名称, 表空间类型                               | bytes     |
+| oracledb_tablespace_max_bytes                  | Oracle数据库表最大容量限制         | tablespace, type                                                                | 表空间名称, 表空间类型                               | bytes     |
+| oracledb_tablespace_free                       | Oracle数据库表可用容量大小         | tablespace, type                                                                | 表空间名称, 表空间类型                               | bytes     |
+| oracledb_tablespace_used_percent               | Oracle数据库表空间使用率          | tablespace, type                                                                | 表空间名称, 表空间类型                               | percent   |
+| oracledb_rac_node                              | Oracle数据库RAC节点数量         | -                                                                               | -                                          | -         |
+| oracledb_dataguard_transport_lag_delay         | Oracle数据库DataGuard数据传输延迟 | -                                                                               | -                                          | s         |
+| oracledb_dataguard_apply_lag_delay             | Oracle数据库DataGuard数据应用延迟 | -                                                                               | -                                          | s         |
+| oracledb_asm_diskgroup_free                    | Oracle数据库ASM磁盘组可用空间      | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
+| oracledb_asm_diskgroup_total                   | Oracle数据库ASM磁盘组总容量       | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
+| oracledb_asm_diskgroup_usage                   | Oracle数据库ASM磁盘组空间使用率     | diskgroup_name                                                                  | 磁盘组名称                                      | percent   |
+| oracledb_asm_disk_stat_reads                   | Oracle数据库ASM磁盘的读操作总数     | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | -         |
+| oracledb_asm_disk_stat_reads_rate              | Oracle数据库ASM磁盘的读操作速率     | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | cps       |
+| oracledb_asm_disk_stat_writes                  | Oracle数据库ASM磁盘的写操作总数     | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | -         |
+| oracledb_asm_disk_stat_writes_rate             | Oracle数据库ASM磁盘的写操作速率     | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | cps       |
+| oracledb_asm_disk_stat_bytes_read              | Oracle数据库ASM磁盘的总读取字节数    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | bytes     |
+| oracledb_asm_disk_stat_bytes_read_rate         | Oracle数据库ASM磁盘的读取传输速率    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | Bps       |
+| oracledb_asm_disk_stat_read_time               | Oracle数据库ASM磁盘的读取时间总和    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | ms        |
+| oracledb_asm_disk_stat_read_time_increase      | Oracle数据库ASM磁盘的读取时间      | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | ms        |
+| oracledb_asm_disk_stat_write_time              | Oracle数据库ASM磁盘的写入时间总和    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | ms        |
+| oracledb_asm_disk_stat_write_time_increase     | Oracle数据库ASM磁盘的写入时间      | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | ms        |
+| oracledb_asm_disk_stat_bytes_written           | Oracle数据库ASM磁盘的总写入字节数    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | bytes     |
+| oracledb_asm_disk_stat_bytes_written_rate      | Oracle数据库ASM磁盘的写入传输速率    | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | Bps       |
+| oracledb_asm_disk_stat_io                      | Oracle数据库ASM磁盘总IO        | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | -         |
+| oracledb_asm_disk_stat_iops                    | Oracle数据库ASM磁盘每秒IO       | inst_id, node_name, instance_name, diskgroup_name, disk_number, failgroup, path | 实例ID, 节点名称, 实例名称, 磁盘组名称, 磁盘编号, 故障组名称, 磁盘路径 | cps       |
+| oracledb_asm_space_consumers_files             | Oracle数据库ASM磁盘组上文件数量     | diskgroup_name, file_type, inst_id, instance_name, node_name                    | 磁盘组名称, 文件类型, 实例ID, 实例名称, 节点名称              | -         |
+| oracledb_asm_space_consumers_size_mb           | Oracle数据库ASM磁盘组上文件大小     | diskgroup_name, file_type, inst_id, instance_name, node_name                    | 磁盘组名称, 文件类型, 实例ID, 实例名称, 节点名称              | mebibytes |
+| oracledb_archived_log_total                    | Oracle数据库归档日志总空间大小       | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
+| oracledb_archived_log_used                     | Oracle数据库归档日志已使用空间大小     | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
+| oracledb_archived_log_usage_ratio              | Oracle数据库归档日志空间使用率       | diskgroup_name                                                                  | 磁盘组名称                                      | percent   |
+| process_cpu_seconds_total                      | Oracle数据库监控探针进程CPU秒数总计   | -                                                                               | -                                          | s         |
+| process_max_fds                                | Oracle数据库监控探针进程最大文件描述符数  | -                                                                               | -                                          | -         |
+| process_open_fds                               | Oracle数据库监控探针进程打开文件描述符数  | -                                                                               | -                                          | -         |
+| process_resident_memory_bytes                  | Oracle数据库监控探针进程常驻内存大小    | -                                                                               | -                                          | bytes     |
+| process_virtual_memory_bytes                   | Oracle数据库监控探针进程虚拟内存大小    | -                                                                               | -                                          | bytes     |
+| oracledb_exporter_last_scrape_duration_seconds | Oracle数据库监控探针最近一次抓取时长    | -                                                                               | -                                          | s         |
+| oracledb_exporter_last_scrape_error            | Oracle数据库监控探针最近一次抓取状态    | -                                                                               | -                                          | -         |
+| oracledb_exporter_scrape_errors_total          | Oracle数据库监控探针采集错误总数      | collector                                                                       | 采集器                                        | -         |
+| oracledb_exporter_scrapes_total                | Oracle数据库监控探针抓取指标总数      | -                                                                               | -                                          | -         |
 
 ### 版本日志
 
@@ -225,6 +223,14 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
 #### weops_oracledb_exporter 2.2.3
 
 - up指标中文名优化
+
+#### weops_oracledb_exporter 3.1.1
+
+- 合入官方版本v1.5.4
+- 指标单位更正
+  oracledb_archived_log_usage_ratio   Oracle数据库归档日志空间使用率    percent
+- 新增部分指标
+- 内置衍生指标
 
 添加“小嘉”微信即可获取oracle数据库监控指标最佳实践礼包，其他更多问题欢迎咨询
 
