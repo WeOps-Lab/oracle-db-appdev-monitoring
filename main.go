@@ -139,7 +139,6 @@ func main() {
 	prometheus.MustRegister(exporter)
 	prometheus.MustRegister(cversion.NewCollector("oracledb_exporter"))
 	prometheus.Unregister(collectors.NewGoCollector())
-	prometheus.Unregister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	logger.Info("Starting oracledb_exporter", "version", Version)
 	logger.Info("Build context", "build", version.BuildContext())
