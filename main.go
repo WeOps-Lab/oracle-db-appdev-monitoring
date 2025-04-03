@@ -42,7 +42,7 @@ var (
 	defaultFileMetrics = kingpin.Flag("default.metrics", "File with default metrics in a TOML file. (env: DEFAULT_METRICS)").Default(getEnv("DEFAULT_METRICS", "")).String()
 	customMetrics      = kingpin.Flag("custom.metrics", "Comma separated list of file(s) that contain various custom metrics in a TOML format. (env: CUSTOM_METRICS)").Default(getEnv("CUSTOM_METRICS", "")).String()
 	queryTimeout       = kingpin.Flag("query.timeout", "Query timeout (in seconds). (env: QUERY_TIMEOUT)").Default(getEnv("QUERY_TIMEOUT", "5")).Int()
-	maxIdleConns       = kingpin.Flag("database.maxIdleConns", "Number of maximum idle connections in the connection pool. (env: DATABASE_MAXIDLECONNS)").Default(getEnv("DATABASE_MAXIDLECONNS", "0")).Int()
+	maxIdleConns       = kingpin.Flag("database.maxIdleConns", "Number of maximum idle connections in the connection pool. (env: DATABASE_MAXIDLECONNS)").Default(getEnv("DATABASE_MAXIDLECONNS", "10")).Int()
 	maxOpenConns       = kingpin.Flag("database.maxOpenConns", "Number of maximum open connections in the connection pool. (env: DATABASE_MAXOPENCONNS)").Default(getEnv("DATABASE_MAXOPENCONNS", "10")).Int()
 	poolIncrement      = kingpin.Flag("database.poolIncrement", "Connection increment when the connection pool reaches max capacity. (env: DATABASE_POOLINCREMENT)").Default(getEnv("DATABASE_POOLINCREMENT", "-1")).Int()
 	poolMaxConnections = kingpin.Flag("database.poolMaxConnections", "Maximum number of connections in the connection pool. (env: DATABASE_POOLMAXCONNECTIONS)").Default(getEnv("DATABASE_POOLMAXCONNECTIONS", "-1")).Int()
@@ -195,7 +195,7 @@ func main() {
 	if *logDisable == 1 {
 		logger.Info("log.disable set to 1, so will not export the alert logs")
 	} else {
-		logger.Info("Exporting alert logs to ", *logDestination)
+		logger.Info(fmt.Sprintf("Exporting alert logs to %s", *logDestination))
 		logTicker := time.NewTicker(*logInterval)
 		defer logTicker.Stop()
 

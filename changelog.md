@@ -5,6 +5,19 @@
 Our current priorities are support for RAC and mutliple databases (including #84 and #89).  We expect to address these in an upcoming release.
 
 
+### Version 1.5.5, March 13, 2025
+
+This release includes the following changes:
+
+- [@VictorErmakov](https://github.com/VictorErmakov) updated the docker-compose sample with connection pool parameters to avoid fast connect cycling (#191).  
+- Update default values for connection pool parameters to use go-sql pooling by default to avoid fast connet cycling.
+- Updated some third-party dependencies.
+
+Thank you to the following people for their suggestions and contributions:
+
+- [@VictorErmakov](https://github.com/VictorErmakov)
+
+
 ### Version 1.5.4, March 3, 2025
 
 This release includes the following changes:
