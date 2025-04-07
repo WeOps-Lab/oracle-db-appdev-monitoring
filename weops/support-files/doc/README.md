@@ -127,6 +127,11 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
    GRANT SELECT ON V_$database TO username;                 -- archived_log指标
    GRANT SELECT ON V_$archive_dest TO username;             -- archived_log指标
    GRANT SELECT ON V_$parameter TO username;                -- archived_log指标
+   
+   -- dba部分授权
+   GRANT SELECT ON dba_indexes TO username;
+   GRANT SELECT ON dba_objects TO username;
+   GRANT SELECT ON dba_users TO username;
    ```
 
 ### 指标简介
@@ -192,6 +197,8 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
 | oracledb_archived_log_total                    | Oracle数据库归档日志总空间大小       | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
 | oracledb_archived_log_used                     | Oracle数据库归档日志已使用空间大小     | diskgroup_name                                                                  | 磁盘组名称                                      | bytes     |
 | oracledb_archived_log_usage_ratio              | Oracle数据库归档日志空间使用率       | diskgroup_name                                                                  | 磁盘组名称                                      | percent   |
+| oracledb_unusable_index_count                  | Oracle数据库中不可用的索引数量       | -                                                                               | -                                          | -         |
+| oracledb_invalid_objects_count                 | Oracle数据库中无效对象数量         | owner, object_type, status                                                      | 拥有者, 对象类型, 对象状态                            | -         |
 | process_cpu_seconds_total                      | Oracle数据库监控探针进程CPU秒数总计   | -                                                                               | -                                          | s         |
 | process_max_fds                                | Oracle数据库监控探针进程最大文件描述符数  | -                                                                               | -                                          | -         |
 | process_open_fds                               | Oracle数据库监控探针进程打开文件描述符数  | -                                                                               | -                                          | -         |
@@ -231,6 +238,12 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
   oracledb_archived_log_usage_ratio   Oracle数据库归档日志空间使用率    percent
 - 新增部分指标
 - 内置衍生指标
+
+#### weops_oracledb_exporter 3.1.2
+- 合入官方版本v1.5.5
+- 新增指标
+  oracledb_unusable_index_count	    Oracle数据库中不可用的索引数量
+  oracledb_invalid_objects_count	Oracle数据库中无效对象数量
 
 添加“小嘉”微信即可获取oracle数据库监控指标最佳实践礼包，其他更多问题欢迎咨询
 
