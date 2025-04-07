@@ -114,3 +114,50 @@ from v$sysmetric
 where group_id=2 and metric_id in (2000,2050,2112,2110)
 '''
 ignorezeroresult = true
+
+
+### 新增指标 ###
+
+[[metric]]
+context = "unusable_index"
+metricsdesc = { count = "Oracle数据库中不可用的索引数量" }
+request = '''
+SELECT
+	ltrim(count(*)) as count
+FROM
+	dba_indexes
+WHERE
+	STATUS = 'UNUSABLE'
+	AND owner IN (
+		SELECT
+			username
+		FROM
+			dba_users
+		WHERE
+			account_status = 'OPEN'
+			AND username NOT IN ('SYS', 'SYSTEM')
+	)
+'''
+
+[[metric]]
+context = "invalid_objects"
+labels = [ "owner", "object_type", "status" ]
+metricsdesc = { count = "Oracle数据库中无效对象数量" }
+request = '''
+SELECT
+    owner,
+    object_type,
+    status,
+    COUNT(*) as count
+FROM
+    dba_objects
+WHERE
+    status <> 'VALID'
+GROUP BY
+    owner, object_type, status
+ORDER BY
+    owner, object_type, status
+'''
+ignorezeroresult = true
+
+
