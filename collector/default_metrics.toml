@@ -161,3 +161,22 @@ ORDER BY
 ignorezeroresult = true
 
 
+[[metric]]
+context = "session_lock"
+labels = [ "username", "status", "client_host", "client_app", "sid", "serial_num", "object_id" ]
+metricsdesc = { seconds_in_wait = "Oracle数据库会话锁等待时间(秒)" }
+request = '''
+SELECT
+    s.username,
+    s.status,
+    s.machine AS client_host,
+    s.program AS client_app,
+    s.sid,
+    s.serial# AS serial_num,
+    s.seconds_in_wait,
+    lo.object_id
+FROM v$session s
+JOIN v$locked_object lo ON s.sid = lo.session_id
+WHERE s.lockwait IS NOT NULL
+'''
+ignorezeroresult = true
