@@ -253,4 +253,4 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
 
 #### weops_oracledb_exporter 3.1.4
 - 新增指标
-  oracledb_session_usage_used_percent	Oracle数据库当前Session限制使用率
+  oracledb_session_usage_used_percent	Oracle数据库当前会话限制使用率
