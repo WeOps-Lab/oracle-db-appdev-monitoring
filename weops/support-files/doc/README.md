@@ -163,6 +163,7 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
 | oracledb_sessions_value                        | Oracle数据库会话数             | status, type                                                                    | 会话状态, 会话类型                                      | -         | gauge    | 原始指标     |
 | oracledb_session_lock_seconds_in_wait          | Oracle数据库会话锁等待时间         | username, status, client_host, client_app, sid, serial_num, object_id           | 用户名, 会话状态, 客户端主机, 客户端程序, 会话 SID, 会话序列号, 被锁对象 ID | s         | gauge    | 原始指标     |
 | oracledb_db_system_value                       | Oracle数据库系统资源            | resource_name                                                                   | 资源名称                                            | -         | gauge    | 原始指标     |
+| oracledb_session_usage_used_percent            | Oracle数据库当前会话限制使用率       | -                                                                               | -                                               | percent   | gauge    | 原始指标     |
 | oracledb_sga_total                             | Oracle数据库SGA总大小          | -                                                                               | -                                               | bytes     | gauge    | 原始指标     |
 | oracledb_sga_free                              | Oracle数据库SGA可用大小         | -                                                                               | -                                               | bytes     | gauge    | 原始指标     |
 | oracledb_sga_used_percent                      | Oracle数据库SGA使用率          | -                                                                               | -                                               | percent   | gauge    | 原始指标     |
@@ -250,3 +251,6 @@ Oracle Database: `11g`, `12c`, `18c`, `19c`, `21c`
 - 新增指标
   oracledb_session_lock_seconds_in_wait	Oracle数据库会话锁等待时间
 
+#### weops_oracledb_exporter 3.1.4
+- 新增指标
+  oracledb_session_usage_used_percent	Oracle数据库当前Session限制使用率
