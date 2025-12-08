@@ -21,6 +21,19 @@ FROM v$resource_limit
 ignorezeroresult = true
 
 [[metric]]
+context = "session_usage"
+metricsdesc = { used_percent = "Gauge metric showing percent of the session limit currently consumed." }
+request = '''
+SELECT
+	ROUND(current_utilization / limit_value * 100, 2) AS usage_percent
+FROM
+	v$resource_limit
+WHERE
+	resource_name = 'sessions';
+'''
+ignorezeroresult = true
+
+[[metric]]
 context = "asm_diskgroup"
 labels = [ "diskgroup_name" ]
 metricsdesc = { total = "Total size of ASM disk group.", free = "Free space available on ASM disk group.", usage = "Percentage of ASM disk group used."}
