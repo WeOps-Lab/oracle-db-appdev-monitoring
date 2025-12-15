@@ -25,7 +25,7 @@ context = "session_usage"
 metricsdesc = { used_percent = "Gauge metric showing percent of the session limit currently consumed." }
 request = '''
 SELECT
-	ROUND(current_utilization / limit_value * 100, 2) AS usage_percent
+	ROUND(current_utilization / limit_value * 100, 2) AS used_percent
 FROM
 	v$resource_limit
 WHERE
