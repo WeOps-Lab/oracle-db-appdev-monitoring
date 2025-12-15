@@ -29,7 +29,7 @@ SELECT
 FROM
 	v$resource_limit
 WHERE
-	resource_name = 'sessions';
+	resource_name = 'sessions'
 '''
 ignorezeroresult = true
 
