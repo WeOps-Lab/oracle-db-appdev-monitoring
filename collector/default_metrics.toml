@@ -193,3 +193,25 @@ JOIN v$locked_object lo ON s.sid = lo.session_id
 WHERE s.lockwait IS NOT NULL
 '''
 ignorezeroresult = true
+
+[[metric]]
+context = "session_blocked"
+labels = [ "username", "status", "client_host", "client_app", "sid", "serial_num", "sql_id", "blocking_session", "event" ]
+metricsdesc = { seconds_in_wait = "Oracle数据库会话被阻塞等待时间(秒)" }
+request = '''
+SELECT
+    s.username,
+    s.status,
+    s.machine AS client_host,
+    s.program AS client_app,
+    s.sid,
+    s.serial# AS serial_num,
+    s.sql_id,
+    TO_CHAR(s.blocking_session) AS blocking_session,
+    s.event,
+    s.seconds_in_wait
+FROM v$session s
+WHERE s.blocking_session IS NOT NULL
+ORDER BY s.seconds_in_wait DESC
+'''
+ignorezeroresult = true
