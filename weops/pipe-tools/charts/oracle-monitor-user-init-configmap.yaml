@@ -52,6 +52,7 @@ data:
     ACCOUNT_PASSWORD="${WEOPS_ACCOUNT_PASSWORD:-Weops123!}"
     TARGET_PDB="$(upper "${WEOPS_TARGET_PDB:-${ORACLE_PDB:-}}")"
     MAX_WAIT_ATTEMPTS="${WEOPS_DB_READY_ATTEMPTS:-720}"
+    REDO_LOG_SIZE_MB="${WEOPS_REDO_LOG_SIZE_MB:-0}"
     PASSWORD_SQL="$(printf '%s' "$ACCOUNT_PASSWORD" | sed 's/"/""/g')"
     CDB_FLAG="NO"
 
@@ -132,6 +133,116 @@ data:
       done
 
       return 1
+    }
+
+    ensure_redo_logs() {
+      case "$REDO_LOG_SIZE_MB" in
+        ''|*[!0-9]*)
+          log "skip redo log tuning because WEOPS_REDO_LOG_SIZE_MB is invalid: ${REDO_LOG_SIZE_MB}"
+          return 0
+          ;;
+      esac
+
+      if [ "$REDO_LOG_SIZE_MB" -le 0 ]; then
+        return 0
+      fi
+
+      current_min_mb="$(run_sqlplus "set heading off pages 0 feedback off verify off echo off
+    select nvl(trunc(min(bytes/1024/1024)), 0) from v\$log;
+    exit" 2>/dev/null | trim_output || true)"
+
+      case "$current_min_mb" in
+        ''|*[!0-9]*)
+          log "skip redo log tuning because current redo size could not be determined"
+          return 0
+          ;;
+      esac
+
+      if [ "$current_min_mb" -ge "$REDO_LOG_SIZE_MB" ]; then
+        log "redo logs already sized at ${current_min_mb}MB"
+        return 0
+      fi
+
+      redo_dir="$(run_sqlplus "set heading off pages 0 feedback off verify off echo off
+    select regexp_replace(member, '/[^/]+$', '') from v\$logfile where member is not null and rownum = 1;
+    exit" 2>/dev/null | trim_output || true)"
+
+      if [ -z "$redo_dir" ]; then
+        log "skip redo log tuning because redo log directory could not be determined"
+        return 0
+      fi
+
+      max_group="$(run_sqlplus "set heading off pages 0 feedback off verify off echo off
+    select nvl(max(group#), 0) from v\$log;
+    exit" 2>/dev/null | trim_output || true)"
+
+      case "$max_group" in
+        ''|*[!0-9]*)
+          log "skip redo log tuning because max redo group could not be determined"
+          return 0
+          ;;
+      esac
+
+      group4=$((max_group + 1))
+      group5=$((max_group + 2))
+      group6=$((max_group + 3))
+      file4="${redo_dir}/redo$(printf '%03d' "$group4").log"
+      file5="${redo_dir}/redo$(printf '%03d' "$group5").log"
+      file6="${redo_dir}/redo$(printf '%03d' "$group6").log"
+
+      log "expanding redo logs from ${current_min_mb}MB to ${REDO_LOG_SIZE_MB}MB in ${redo_dir}"
+
+      sql_text="$(cat <<EOF
+    WHENEVER SQLERROR EXIT SQL.SQLCODE
+    SET SERVEROUTPUT ON SIZE UNLIMITED
+    DECLARE
+      v_target_mb NUMBER := ${REDO_LOG_SIZE_MB};
+      v_small_busy NUMBER := 0;
+
+      PROCEDURE exec_sql(p_sql VARCHAR2, p_optional BOOLEAN DEFAULT FALSE) IS
+      BEGIN
+        EXECUTE IMMEDIATE p_sql;
+        DBMS_OUTPUT.PUT_LINE('OK   ' || p_sql);
+      EXCEPTION
+        WHEN OTHERS THEN
+          IF p_optional THEN
+            DBMS_OUTPUT.PUT_LINE('SKIP ' || p_sql || ' -> ' || SQLERRM);
+          ELSE
+            RAISE;
+          END IF;
+      END;
+    BEGIN
+      exec_sql(q'[ALTER DATABASE ADD LOGFILE GROUP ${group4} ('${file4}') SIZE ${REDO_LOG_SIZE_MB}M]', TRUE);
+      exec_sql(q'[ALTER DATABASE ADD LOGFILE GROUP ${group5} ('${file5}') SIZE ${REDO_LOG_SIZE_MB}M]', TRUE);
+      exec_sql(q'[ALTER DATABASE ADD LOGFILE GROUP ${group6} ('${file6}') SIZE ${REDO_LOG_SIZE_MB}M]', TRUE);
+
+      FOR i IN 1..12 LOOP
+        SELECT COUNT(*) INTO v_small_busy
+        FROM v\$log
+        WHERE bytes/1024/1024 < v_target_mb
+          AND status IN ('CURRENT', 'ACTIVE');
+
+        EXIT WHEN v_small_busy = 0;
+
+        exec_sql('ALTER SYSTEM SWITCH LOGFILE');
+        exec_sql('ALTER SYSTEM CHECKPOINT');
+      END LOOP;
+
+      FOR r IN (
+        SELECT group#
+        FROM v\$log
+        WHERE bytes/1024/1024 < v_target_mb
+        ORDER BY group#
+      ) LOOP
+        exec_sql('ALTER DATABASE DROP LOGFILE GROUP ' || r.group#, TRUE);
+      END LOOP;
+    END;
+    /
+    EXIT
+    EOF
+    )"
+
+      run_sqlplus "$sql_text"
     }
 
     if [ "${1:-}" = "--probe" ]; then
@@ -481,6 +592,10 @@ data:
     if ! apply_accounts_with_retry; then
       log "account initialization failed after retries"
       exit 1
+    fi
+
+    if ! ensure_redo_logs; then
+      log "redo log tuning failed, continuing without blocking readiness"
     fi
 
     touch "$READY_MARKER"

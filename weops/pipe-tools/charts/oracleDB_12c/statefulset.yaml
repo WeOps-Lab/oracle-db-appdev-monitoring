@@ -71,6 +71,8 @@ spec:
               value: "Weops123!"
             - name: WEOPS_TARGET_PDB
               value: "ORCLPDB1"
+            - name: WEOPS_REDO_LOG_SIZE_MB
+              value: "200"
       volumes:
         - name: weops-oracle-init
           configMap:

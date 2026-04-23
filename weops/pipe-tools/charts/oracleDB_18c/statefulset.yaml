@@ -66,9 +66,6 @@ spec:
               cpu: 2000m
               memory: 3000Mi
       volumes:
-        - name: datamount
-          persistentVolumeClaim:
-            claimName: db18c-oracle-db
         - name: weops-oracle-init
           configMap:
             name: oracle-monitor-user-init
