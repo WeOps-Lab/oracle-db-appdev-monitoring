@@ -281,7 +281,7 @@ data:
                 return 0
               fi
             fi
-          else
+          elif [ "$cdb_value" = "NO" ]; then
             CDB_FLAG="NO"
             return 0
           fi

@@ -8,7 +8,6 @@ kubectl apply -f ./oracleDB_11g/statefulset.yaml -n $object
 kubectl apply -f ./oracleDB_12c/svc.yaml -n $object
 kubectl apply -f ./oracleDB_12c/statefulset.yaml -n $object
 kubectl apply -f ./oracleDB_18c/svc.yaml -n $object
-kubectl apply -f ./oracleDB_18c/pvc.yaml -n $object
 kubectl apply -f ./oracleDB_18c/statefulset.yaml -n $object
 kubectl apply -f ./oracleDB_19c/pvc.yaml -n $object
 kubectl apply -f ./oracleDB_19c/statefulset.yaml -n $object
