@@ -1,0 +1,487 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oracle-monitor-user-init
+  namespace: oracle
+data:
+  init-monitor-users.sh: |
+    #!/bin/sh
+    set -eu
+
+    READY_MARKER="/tmp/weops-users-ready"
+    LOCAL_PROFILE="WEOPS_LOCAL_PROFILE"
+    COMMON_PROFILE="C##WEOPS_COMMON_PROFILE"
+
+    upper() {
+      printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+    }
+
+    log() {
+      printf '[weops-init] %s\n' "$*"
+    }
+
+    trim_output() {
+      tr -d '[:space:]'
+    }
+
+    probe_database_ready() {
+      if [ ! -f "$READY_MARKER" ]; then
+        return 1
+      fi
+
+      for script in \
+        "${ORACLE_BASE:-}/checkDBLockStatus.sh" \
+        "${ORACLE_BASE:-}/checkDBStatus.sh" \
+        /opt/oracle/checkDBLockStatus.sh \
+        /opt/oracle/checkDBStatus.sh \
+        /u01/app/oracle/checkDBLockStatus.sh \
+        /u01/app/oracle/checkDBStatus.sh
+      do
+        if [ -n "$script" ] && [ -x "$script" ]; then
+          "$script"
+          return $?
+        fi
+      done
+
+      return 0
+    }
+
+    SYSTEM_USER="$(upper "${WEOPS_SYSTEM_USER:-system}")"
+    COMMON_SYSTEM_USER="$(upper "${WEOPS_COMMON_SYSTEM_USER:-C##SYSTEM}")"
+    MONITOR_USER="$(upper "${WEOPS_MONITOR_USER:-weops}")"
+    ACCOUNT_PASSWORD="${WEOPS_ACCOUNT_PASSWORD:-Weops123!}"
+    TARGET_PDB="$(upper "${WEOPS_TARGET_PDB:-${ORACLE_PDB:-}}")"
+    MAX_WAIT_ATTEMPTS="${WEOPS_DB_READY_ATTEMPTS:-720}"
+    PASSWORD_SQL="$(printf '%s' "$ACCOUNT_PASSWORD" | sed 's/"/""/g')"
+    CDB_FLAG="NO"
+
+    discover_oracle_env() {
+      oratab_line=""
+
+      if [ -f /etc/oratab ]; then
+        oratab_line="$(grep -v '^[#[:space:]]' /etc/oratab | awk -F: 'NF>=2 {print $1 ":" $2; exit}')"
+      fi
+
+      if [ -z "${ORACLE_SID:-}" ] && [ -n "$oratab_line" ]; then
+        ORACLE_SID="$(printf '%s' "$oratab_line" | cut -d: -f1)"
+      fi
+
+      if [ -z "${ORACLE_HOME:-}" ] && [ -n "$oratab_line" ]; then
+        ORACLE_HOME="$(printf '%s' "$oratab_line" | cut -d: -f2)"
+      fi
+
+      if [ -z "${ORACLE_HOME:-}" ]; then
+        for home in /opt/oracle/product/*/dbhome* /u01/app/oracle/product/*/xe; do
+          if [ -x "$home/bin/sqlplus" ]; then
+            ORACLE_HOME="$home"
+            break
+          fi
+        done
+      fi
+
+      if [ -z "${ORACLE_HOME:-}" ]; then
+        log "unable to determine ORACLE_HOME"
+        exit 1
+      fi
+
+      if [ -z "${ORACLE_SID:-}" ]; then
+        ORACLE_SID="$(grep "$ORACLE_HOME" /etc/oratab | cut -d: -f1 | head -n 1)"
+      fi
+
+      export ORACLE_HOME ORACLE_SID
+      export PATH="$ORACLE_HOME/bin:$PATH"
+    }
+
+    run_sqlplus() {
+      sql_text="$1"
+
+      if [ "$(id -u)" = "0" ] && command -v runuser >/dev/null 2>&1 && id oracle >/dev/null 2>&1; then
+        printf '%s\n' "$sql_text" | runuser -u oracle -- env ORACLE_HOME="$ORACLE_HOME" ORACLE_SID="$ORACLE_SID" PATH="$PATH" sqlplus -L -s "/ as sysdba"
+      else
+        printf '%s\n' "$sql_text" | env ORACLE_HOME="$ORACLE_HOME" ORACLE_SID="$ORACLE_SID" PATH="$PATH" sqlplus -L -s "/ as sysdba"
+      fi
+    }
+
+    apply_accounts_with_retry() {
+      attempt=0
+
+      while [ "$attempt" -lt 12 ]; do
+        if [ "$CDB_FLAG" = "YES" ]; then
+          if [ -z "$TARGET_PDB" ]; then
+            log "CDB detected but target PDB is empty"
+            exit 1
+          fi
+
+          log "configuring root accounts"
+          if apply_cdb_root_accounts; then
+            log "configuring PDB monitor account in ${TARGET_PDB}"
+            if apply_pdb_monitor_user; then
+              return 0
+            fi
+          fi
+        else
+          log "configuring non-CDB accounts"
+          if apply_non_cdb_accounts; then
+            return 0
+          fi
+        fi
+
+        attempt=$((attempt + 1))
+        log "account initialization attempt ${attempt} failed, retrying"
+        sleep 10
+      done
+
+      return 1
+    }
+
+    if [ "${1:-}" = "--probe" ]; then
+      probe_database_ready
+      exit $?
+    fi
+
+    wait_for_database() {
+      attempt=0
+
+      while [ "$attempt" -lt "$MAX_WAIT_ATTEMPTS" ]; do
+        db_mode="$(run_sqlplus "set heading off pages 0 feedback off verify off echo off
+    select open_mode from v\$database;
+    exit" 2>/dev/null | trim_output || true)"
+
+        if [ "$db_mode" = "READWRITE" ] || [ "$db_mode" = "OPEN" ]; then
+          cdb_value="$(run_sqlplus "set heading off pages 0 feedback off verify off echo off
+    select cdb from v\$database;
+    exit" 2>/dev/null | trim_output || true)"
+
+          if [ "$cdb_value" = "YES" ]; then
+            CDB_FLAG="YES"
+
+            if [ -z "$TARGET_PDB" ]; then
+              TARGET_PDB="$(run_sqlplus "set heading off pages 0 feedback off verify off echo off
+    select name from v\$pdbs where name <> 'PDB\$SEED' and open_mode = 'READ WRITE' and rownum = 1;
+    exit" 2>/dev/null | trim_output || true)"
+            fi
+
+            if [ -n "$TARGET_PDB" ]; then
+              pdb_mode="$(run_sqlplus "set heading off pages 0 feedback off verify off echo off
+    select open_mode from v\$pdbs where name = upper('${TARGET_PDB}');
+    exit" 2>/dev/null | trim_output || true)"
+
+              if [ "$pdb_mode" = "READWRITE" ]; then
+                return 0
+              fi
+            fi
+          else
+            CDB_FLAG="NO"
+            return 0
+          fi
+        fi
+
+        attempt=$((attempt + 1))
+        sleep 5
+      done
+
+      return 1
+    }
+
+    apply_non_cdb_accounts() {
+      sql_text="$(cat <<EOF
+    WHENEVER SQLERROR EXIT SQL.SQLCODE
+    SET SERVEROUTPUT ON SIZE UNLIMITED
+    DECLARE
+      v_password VARCHAR2(4000) := '${PASSWORD_SQL}';
+
+      PROCEDURE exec_sql(p_sql VARCHAR2, p_optional BOOLEAN DEFAULT FALSE) IS
+      BEGIN
+        EXECUTE IMMEDIATE p_sql;
+        DBMS_OUTPUT.PUT_LINE('OK   ' || p_sql);
+      EXCEPTION
+        WHEN OTHERS THEN
+          IF p_optional AND SQLCODE IN (-942, -4043) THEN
+            DBMS_OUTPUT.PUT_LINE('SKIP ' || p_sql || ' -> ' || SQLERRM);
+          ELSE
+            RAISE;
+          END IF;
+      END;
+
+      PROCEDURE ensure_profile IS
+      BEGIN
+        BEGIN
+          exec_sql('CREATE PROFILE ${LOCAL_PROFILE} LIMIT FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED PASSWORD_GRACE_TIME UNLIMITED PASSWORD_VERIFY_FUNCTION NULL');
+        EXCEPTION
+          WHEN OTHERS THEN
+            IF SQLCODE IN (-955, -1, -2379) THEN
+              DBMS_OUTPUT.PUT_LINE('INFO profile already exists: ${LOCAL_PROFILE}');
+            ELSE
+              RAISE;
+            END IF;
+        END;
+
+        exec_sql('ALTER PROFILE ${LOCAL_PROFILE} LIMIT FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED PASSWORD_GRACE_TIME UNLIMITED PASSWORD_VERIFY_FUNCTION NULL');
+      END;
+
+      PROCEDURE grant_monitor(p_username VARCHAR2) IS
+      BEGIN
+        exec_sql('GRANT CREATE SESSION TO ' || p_username);
+        exec_sql('GRANT SELECT_CATALOG_ROLE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$INSTANCE TO ' || p_username);
+        exec_sql('GRANT SELECT ON GV_\$INSTANCE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$SESSION TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$RESOURCE_LIMIT TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SYSSTAT TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$PROCESS TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SYSMETRIC TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$WAITCLASSMETRIC TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SYSTEM_WAIT_CLASS TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SGA TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$SGASTAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$PGASTAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON DBA_TABLESPACE_USAGE_METRICS TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_TABLESPACES TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$DATAFILE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_DISKGROUP_STAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_DISK_STAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_ALIAS TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_DISKGROUP TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_FILE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$DATAGUARD_STATS TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$DATABASE TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$ARCHIVE_DEST TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$PARAMETER TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_INDEXES TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_OBJECTS TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_USERS TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$LOCKED_OBJECT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$DIAG_ALERT_EXT TO ' || p_username, TRUE);
+      END;
+
+      PROCEDURE ensure_admin_user(p_username VARCHAR2) IS
+        v_exists NUMBER := 0;
+      BEGIN
+        SELECT COUNT(*) INTO v_exists FROM dba_users WHERE username = p_username;
+
+        IF v_exists = 0 THEN
+          exec_sql('CREATE USER ' || p_username || ' IDENTIFIED BY "' || v_password || '"');
+        ELSE
+          exec_sql('ALTER USER ' || p_username || ' IDENTIFIED BY "' || v_password || '"');
+        END IF;
+
+        exec_sql('ALTER USER ' || p_username || ' ACCOUNT UNLOCK');
+        exec_sql('ALTER USER ' || p_username || ' PROFILE ${LOCAL_PROFILE}');
+        exec_sql('GRANT CREATE SESSION TO ' || p_username);
+        exec_sql('GRANT DBA TO ' || p_username);
+        exec_sql('GRANT UNLIMITED TABLESPACE TO ' || p_username);
+      END;
+
+      PROCEDURE ensure_monitor_user IS
+        v_exists NUMBER := 0;
+      BEGIN
+        SELECT COUNT(*) INTO v_exists FROM dba_users WHERE username = '${MONITOR_USER}';
+
+        IF v_exists = 0 THEN
+          exec_sql('CREATE USER ${MONITOR_USER} IDENTIFIED BY "' || v_password || '"');
+        ELSE
+          exec_sql('ALTER USER ${MONITOR_USER} IDENTIFIED BY "' || v_password || '"');
+        END IF;
+
+        exec_sql('ALTER USER ${MONITOR_USER} ACCOUNT UNLOCK');
+        exec_sql('ALTER USER ${MONITOR_USER} PROFILE ${LOCAL_PROFILE}');
+        grant_monitor('${MONITOR_USER}');
+      END;
+    BEGIN
+      ensure_profile;
+      exec_sql('ALTER USER ${SYSTEM_USER} IDENTIFIED BY "' || v_password || '"');
+      exec_sql('ALTER USER ${SYSTEM_USER} ACCOUNT UNLOCK');
+      exec_sql('ALTER USER ${SYSTEM_USER} PROFILE ${LOCAL_PROFILE}');
+      ensure_admin_user('${COMMON_SYSTEM_USER}');
+      ensure_monitor_user;
+    END;
+    /
+    EXIT
+    EOF
+    )"
+
+      run_sqlplus "$sql_text"
+    }
+
+    apply_cdb_root_accounts() {
+      sql_text="$(cat <<EOF
+    WHENEVER SQLERROR EXIT SQL.SQLCODE
+    SET SERVEROUTPUT ON SIZE UNLIMITED
+    DECLARE
+      v_password VARCHAR2(4000) := '${PASSWORD_SQL}';
+
+      PROCEDURE exec_sql(p_sql VARCHAR2, p_optional BOOLEAN DEFAULT FALSE) IS
+      BEGIN
+        EXECUTE IMMEDIATE p_sql;
+        DBMS_OUTPUT.PUT_LINE('OK   ' || p_sql);
+      EXCEPTION
+        WHEN OTHERS THEN
+          IF p_optional AND SQLCODE IN (-942, -4043, -65040) THEN
+            DBMS_OUTPUT.PUT_LINE('SKIP ' || p_sql || ' -> ' || SQLERRM);
+          ELSE
+            RAISE;
+          END IF;
+      END;
+
+      PROCEDURE ensure_profile IS
+      BEGIN
+        BEGIN
+          exec_sql('CREATE PROFILE ${COMMON_PROFILE} LIMIT FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED PASSWORD_GRACE_TIME UNLIMITED PASSWORD_VERIFY_FUNCTION NULL CONTAINER=ALL');
+        EXCEPTION
+          WHEN OTHERS THEN
+            IF SQLCODE IN (-955, -1, -2379) THEN
+              DBMS_OUTPUT.PUT_LINE('INFO profile already exists: ${COMMON_PROFILE}');
+            ELSE
+              RAISE;
+            END IF;
+        END;
+
+        exec_sql('ALTER PROFILE ${COMMON_PROFILE} LIMIT FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED PASSWORD_GRACE_TIME UNLIMITED PASSWORD_VERIFY_FUNCTION NULL CONTAINER=ALL');
+      END;
+
+      PROCEDURE ensure_common_admin_user IS
+        v_exists NUMBER := 0;
+      BEGIN
+        SELECT COUNT(*) INTO v_exists FROM dba_users WHERE username = '${COMMON_SYSTEM_USER}';
+
+        IF v_exists = 0 THEN
+          exec_sql('CREATE USER ${COMMON_SYSTEM_USER} IDENTIFIED BY "' || v_password || '" CONTAINER=ALL');
+        ELSE
+          exec_sql('ALTER USER ${COMMON_SYSTEM_USER} IDENTIFIED BY "' || v_password || '" CONTAINER=ALL');
+        END IF;
+
+        exec_sql('ALTER USER ${COMMON_SYSTEM_USER} ACCOUNT UNLOCK CONTAINER=ALL');
+        exec_sql('ALTER USER ${COMMON_SYSTEM_USER} PROFILE ${COMMON_PROFILE} CONTAINER=ALL');
+        exec_sql('GRANT CREATE SESSION TO ${COMMON_SYSTEM_USER} CONTAINER=ALL');
+        exec_sql('GRANT DBA TO ${COMMON_SYSTEM_USER} CONTAINER=ALL');
+        exec_sql('GRANT UNLIMITED TABLESPACE TO ${COMMON_SYSTEM_USER} CONTAINER=ALL');
+      END;
+    BEGIN
+      ensure_profile;
+      exec_sql('ALTER USER ${SYSTEM_USER} IDENTIFIED BY "' || v_password || '" CONTAINER=ALL');
+      exec_sql('ALTER USER ${SYSTEM_USER} ACCOUNT UNLOCK CONTAINER=ALL');
+      exec_sql('ALTER USER ${SYSTEM_USER} PROFILE ${COMMON_PROFILE} CONTAINER=ALL');
+      ensure_common_admin_user;
+    END;
+    /
+    EXIT
+    EOF
+    )"
+
+      run_sqlplus "$sql_text"
+    }
+
+    apply_pdb_monitor_user() {
+      sql_text="$(cat <<EOF
+    WHENEVER SQLERROR EXIT SQL.SQLCODE
+    ALTER SESSION SET CONTAINER = ${TARGET_PDB};
+    SET SERVEROUTPUT ON SIZE UNLIMITED
+    DECLARE
+      v_password VARCHAR2(4000) := '${PASSWORD_SQL}';
+
+      PROCEDURE exec_sql(p_sql VARCHAR2, p_optional BOOLEAN DEFAULT FALSE) IS
+      BEGIN
+        EXECUTE IMMEDIATE p_sql;
+        DBMS_OUTPUT.PUT_LINE('OK   ' || p_sql);
+      EXCEPTION
+        WHEN OTHERS THEN
+          IF p_optional AND SQLCODE IN (-942, -4043, -65040) THEN
+            DBMS_OUTPUT.PUT_LINE('SKIP ' || p_sql || ' -> ' || SQLERRM);
+          ELSE
+            RAISE;
+          END IF;
+      END;
+
+      PROCEDURE ensure_profile IS
+      BEGIN
+        BEGIN
+          exec_sql('CREATE PROFILE ${LOCAL_PROFILE} LIMIT FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED PASSWORD_GRACE_TIME UNLIMITED PASSWORD_VERIFY_FUNCTION NULL');
+        EXCEPTION
+          WHEN OTHERS THEN
+            IF SQLCODE IN (-955, -1, -2379) THEN
+              DBMS_OUTPUT.PUT_LINE('INFO profile already exists: ${LOCAL_PROFILE}');
+            ELSE
+              RAISE;
+            END IF;
+        END;
+
+        exec_sql('ALTER PROFILE ${LOCAL_PROFILE} LIMIT FAILED_LOGIN_ATTEMPTS UNLIMITED PASSWORD_LIFE_TIME UNLIMITED PASSWORD_GRACE_TIME UNLIMITED PASSWORD_VERIFY_FUNCTION NULL');
+      END;
+
+      PROCEDURE grant_monitor(p_username VARCHAR2) IS
+      BEGIN
+        exec_sql('GRANT CREATE SESSION TO ' || p_username);
+        exec_sql('GRANT SELECT_CATALOG_ROLE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$INSTANCE TO ' || p_username);
+        exec_sql('GRANT SELECT ON GV_\$INSTANCE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$SESSION TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$RESOURCE_LIMIT TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SYSSTAT TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$PROCESS TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SYSMETRIC TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$WAITCLASSMETRIC TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SYSTEM_WAIT_CLASS TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$SGA TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$SGASTAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$PGASTAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON DBA_TABLESPACE_USAGE_METRICS TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_TABLESPACES TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$DATAFILE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_DISKGROUP_STAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_DISK_STAT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_ALIAS TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_DISKGROUP TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$ASM_FILE TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$DATAGUARD_STATS TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$DATABASE TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$ARCHIVE_DEST TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$PARAMETER TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_INDEXES TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_OBJECTS TO ' || p_username);
+        exec_sql('GRANT SELECT ON DBA_USERS TO ' || p_username);
+        exec_sql('GRANT SELECT ON V_\$LOCKED_OBJECT TO ' || p_username, TRUE);
+        exec_sql('GRANT SELECT ON V_\$DIAG_ALERT_EXT TO ' || p_username, TRUE);
+      END;
+
+      PROCEDURE ensure_monitor_user IS
+        v_exists NUMBER := 0;
+      BEGIN
+        SELECT COUNT(*) INTO v_exists FROM dba_users WHERE username = '${MONITOR_USER}';
+
+        IF v_exists = 0 THEN
+          exec_sql('CREATE USER ${MONITOR_USER} IDENTIFIED BY "' || v_password || '"');
+        ELSE
+          exec_sql('ALTER USER ${MONITOR_USER} IDENTIFIED BY "' || v_password || '"');
+        END IF;
+
+        exec_sql('ALTER USER ${MONITOR_USER} ACCOUNT UNLOCK');
+        exec_sql('ALTER USER ${MONITOR_USER} PROFILE ${LOCAL_PROFILE}');
+        grant_monitor('${MONITOR_USER}');
+      END;
+    BEGIN
+      ensure_profile;
+      ensure_monitor_user;
+    END;
+    /
+    EXIT
+    EOF
+    )"
+
+      run_sqlplus "$sql_text"
+    }
+
+    rm -f "$READY_MARKER"
+    discover_oracle_env
+
+    if ! wait_for_database; then
+      log "database did not become ready in time after ${MAX_WAIT_ATTEMPTS} checks"
+      exit 1
+    fi
+
+    if ! apply_accounts_with_retry; then
+      log "account initialization failed after retries"
+      exit 1
+    fi
+
+    touch "$READY_MARKER"
+    log "oracle users are initialized"

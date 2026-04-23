@@ -1,0 +1,75 @@
+#export ORACLE_HOME=/u01/app/oracle/product/11.2.0/xe
+#export ORACLE_SID=XE
+#export PATH=$ORACLE_HOME/bin:$PATH
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db11g-oracle-db
+  namespace: oracle
+  labels:
+    app: db11g-oracle-db
+    object: oracle
+    object_version: 11g
+spec:
+  serviceName: db11g-oracle-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db11g-oracle-db
+  template:
+    metadata:
+      labels:
+        app: db11g-oracle-db
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsUser: 0
+        fsGroup: 54321
+      containers:
+        - name: oracle-db
+          image: registry-svc:25000/library/oracle/database:11.2.0.2-xe
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command: [ "/bin/sh", "-c", "/weops-init/init-monitor-users.sh >/proc/1/fd/1 2>/proc/1/fd/2 &" ]
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+            - name: weops-oracle-init
+              mountPath: /weops-init/init-monitor-users.sh
+              subPath: init-monitor-users.sh
+              readOnly: true
+          ports:
+            - containerPort: 1521
+            - containerPort: 5500
+          readinessProbe:
+            exec:
+              command: [ "/weops-init/init-monitor-users.sh", "--probe" ]
+            initialDelaySeconds: 20
+            periodSeconds: 40
+            timeoutSeconds: 20
+          env:
+            - name: ORACLE_PWD
+              value: "Weops123"
+            - name: ORACLE_CHARACTERSET
+              value: "AL32UTF8"
+            - name: WEOPS_SYSTEM_USER
+              value: "system"
+            - name: WEOPS_COMMON_SYSTEM_USER
+              value: "C##SYSTEM"
+            - name: WEOPS_MONITOR_USER
+              value: "weops"
+            - name: WEOPS_ACCOUNT_PASSWORD
+              value: "Weops123!"
+          resources:
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: shm
+          emptyDir:
+            sizeLimit: "1Gi"
+        - name: weops-oracle-init
+          configMap:
+            name: oracle-monitor-user-init
+            defaultMode: 0755

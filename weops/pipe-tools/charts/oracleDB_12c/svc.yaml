@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: db12c-oracle-db
+  namespace: oracle
+  labels:
+    app: db12c-oracle-db
+spec:
+  type: NodePort
+  ports:
+  - name: listener
+    port: 1521
+    protocol: TCP
+    nodePort: 1522
+  - name: xmldb
+    port: 5500
+    protocol: TCP
+  selector:
+    app: db12c-oracle-db

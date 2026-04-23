@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db12c-oracle-db
+  namespace: oracle
+  labels:
+    app: db12c-oracle-db
+    object: oracle
+    object_version: 12c
+spec:
+  serviceName: db12c-oracle-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db12c-oracle-db
+  template:
+    metadata:
+      labels:
+        app: db12c-oracle-db
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsUser: 54321
+        fsGroup: 54321
+      containers:
+        - name: oracle-db
+          image: registry-svc:25000/library/oracle/database/enterprise:12.2.0.1
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command: [ "/bin/sh", "-c", "/weops-init/init-monitor-users.sh >/proc/1/fd/1 2>/proc/1/fd/2 &" ]
+          volumeMounts:
+            - name: weops-oracle-init
+              mountPath: /weops-init/init-monitor-users.sh
+              subPath: init-monitor-users.sh
+              readOnly: true
+          ports:
+            - containerPort: 1521
+            - containerPort: 5500
+          readinessProbe:
+            exec:
+              command: [ "/weops-init/init-monitor-users.sh", "--probe" ]
+            initialDelaySeconds: 20
+            periodSeconds: 40
+            timeoutSeconds: 20
+          env:
+            - name: SVC_HOST
+              value: "db12c-oracle-db"
+            - name: SVC_PORT
+              value: "1521"
+            - name: ORACLE_SID
+              value: "ORCLCDB"
+            - name: ORACLE_PDB
+              value: "ORCLPDB1"
+            - name: ORACLE_PWD
+              value: "Weops123!"
+            - name: ORACLE_CHARACTERSET
+              value: "AL32UTF8"
+            - name: ORACLE_EDITION
+              value: "enterprise"
+            - name: ENABLE_ARCHIVELOG
+              value: "false"
+            - name: WEOPS_SYSTEM_USER
+              value: "system"
+            - name: WEOPS_COMMON_SYSTEM_USER
+              value: "C##SYSTEM"
+            - name: WEOPS_MONITOR_USER
+              value: "weops"
+            - name: WEOPS_ACCOUNT_PASSWORD
+              value: "Weops123!"
+            - name: WEOPS_TARGET_PDB
+              value: "ORCLPDB1"
+      volumes:
+        - name: weops-oracle-init
+          configMap:
+            name: oracle-monitor-user-init
+            defaultMode: 0755
