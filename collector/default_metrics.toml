@@ -215,3 +215,66 @@ WHERE s.blocking_session IS NOT NULL
 ORDER BY s.seconds_in_wait DESC
 '''
 ignorezeroresult = true
+
+[[metric]]
+context = "datafile"
+labels = [ "file_id", "file_name", "status_name" ]
+metricsdesc = { status = "Oracle数据库数据文件状态，SYSTEM或ONLINE为1，其他状态为0" }
+request = '''
+SELECT
+    TO_CHAR(file#) AS file_id,
+    name AS file_name,
+    status AS status_name,
+    CASE WHEN status IN ('SYSTEM', 'ONLINE') THEN 1 ELSE 0 END AS status
+FROM v$datafile
+ORDER BY file#
+'''
+
+[[metric]]
+context = "redo_log"
+metricsdesc = { switches_1h = "Oracle数据库最近1小时重做日志切换次数" }
+request = '''
+SELECT COUNT(*) AS switches_1h
+FROM v$log_history
+WHERE first_time >= SYSDATE - (1 / 24)
+'''
+
+[[metric]]
+context = "log_file_sync"
+metricsdesc = { waiting_sessions = "Oracle数据库当前统计窗口内日志文件同步等待会话数", wait_count = "Oracle数据库当前统计窗口内日志文件同步等待次数", time_waited_ms = "Oracle数据库当前统计窗口内日志文件同步累计等待时间(毫秒)", avg_wait_ms = "Oracle数据库当前统计窗口内日志文件同步平均等待时间(毫秒)" }
+request = '''
+SELECT
+    NVL(MAX(m.num_sess_waiting), 0) AS waiting_sessions,
+    NVL(SUM(m.wait_count), 0) AS wait_count,
+    NVL(SUM(m.time_waited) * 10, 0) AS time_waited_ms,
+    NVL(
+        CASE
+            WHEN SUM(m.wait_count) > 0
+            THEN SUM(m.time_waited) * 10 / SUM(m.wait_count)
+            ELSE 0
+        END,
+        0
+    ) AS avg_wait_ms
+FROM v$eventmetric m
+JOIN v$event_name n ON n.event_id = m.event_id
+WHERE n.name = 'log file sync'
+'''
+
+[[metric]]
+context = "deadlocks"
+metricsdesc = { total = "Oracle数据库实例启动后累计死锁次数" }
+metricstype = { total = "counter" }
+request = '''
+SELECT NVL(MAX(value), 0) AS total
+FROM v$sysstat
+WHERE name = 'enqueue deadlocks'
+'''
+
+[[metric]]
+context = "lock_waiting_sessions"
+metricsdesc = { count = "Oracle数据库当前锁等待会话数" }
+request = '''
+SELECT COUNT(*) AS count
+FROM v$session
+WHERE blocking_session IS NOT NULL
+'''
